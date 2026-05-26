@@ -66,7 +66,7 @@ func init() {
 				return response
 			} else if _, err := mythicrpc.SendMythicRPCFileUpdate(mythicrpc.MythicRPCFileUpdateMessage{
 				AgentFileID: fileID,
-				Comment:     "Loaded for native_import/native_call/native_unload",
+				Comment:     nativeModuleComment,
 			}); err != nil {
 				response.Success = false
 				response.Error = err.Error()

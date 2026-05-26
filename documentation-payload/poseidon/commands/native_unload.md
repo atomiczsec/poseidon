@@ -14,9 +14,9 @@ Unload a module previously loaded with `native_import`.
 
 ### Arguments
 
-#### filename
+#### file_id
 
-- Description: Name of the module previously selected with `native_import`.
+- Description: The native module previously imported with `native_import`, shown as `filename (file_id)`.
 - Required Value: True
 - Default Value: None
 

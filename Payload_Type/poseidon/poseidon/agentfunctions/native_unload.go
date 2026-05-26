@@ -5,7 +5,6 @@ import (
 
 	agentstructs "github.com/MythicMeta/MythicContainer/agent_structs"
 	"github.com/MythicMeta/MythicContainer/logging"
-	"github.com/MythicMeta/MythicContainer/mythicrpc"
 )
 
 func init() {
@@ -18,11 +17,11 @@ func init() {
 		Author:              "@its_a_feature_",
 		CommandParameters: []agentstructs.CommandParameter{
 			{
-				Name:                 "filename",
+				Name:                 "file_id",
 				ModalDisplayName:     "Module Loaded via native_import",
 				ParameterType:        agentstructs.COMMAND_PARAMETER_TYPE_CHOOSE_ONE,
-				Description:          "The filename of the imported .so or .dylib.",
-				DynamicQueryFunction: getCallbackFiles,
+				Description:          "The native module previously imported with native_import, shown as filename (file_id).",
+				DynamicQueryFunction: getNativeModuleFiles,
 				ParameterGroupInformation: []agentstructs.ParameterGroupInfo{
 					{
 						ParameterIsRequired: true,
@@ -46,38 +45,23 @@ func init() {
 				Success: true,
 				TaskID:  taskData.Task.ID,
 			}
-			if filename, err := taskData.Args.GetStringArg("filename"); err != nil {
-				logging.LogError(err, "Failed to get filename")
+			if fileSelection, err := taskData.Args.GetStringArg("file_id"); err != nil {
+				logging.LogError(err, "Failed to get file_id")
 				response.Success = false
 				response.Error = err.Error()
 				return response
-			} else if search, err := mythicrpc.SendMythicRPCFileSearch(mythicrpc.MythicRPCFileSearchMessage{
-				Filename:            filename,
-				LimitByCallback:     true,
-				CallbackID:          taskData.Callback.ID,
-				MaxResults:          1,
-				IsPayload:           false,
-				IsDownloadFromAgent: false,
-			}); err != nil {
+			} else if file, errMsg := resolveNativeModuleFile(fileSelection, taskData.Callback.ID); errMsg != "" {
 				response.Success = false
-				response.Error = "Error trying to search for files: " + err.Error()
-				return response
-			} else if !search.Success {
-				response.Success = false
-				response.Error = search.Error
-				return response
-			} else if len(search.Files) == 0 {
-				response.Success = false
-				response.Error = "Failed to find specified file"
+				response.Error = errMsg
 				return response
 			} else {
-				taskData.Args.RemoveArg("filename")
+				taskData.Args.RemoveArg("file_id")
 				taskData.Args.AddArg(agentstructs.CommandParameter{
 					Name:          "file_id",
 					ParameterType: agentstructs.COMMAND_PARAMETER_TYPE_STRING,
-					DefaultValue:  search.Files[0].AgentFileID,
+					DefaultValue:  file.AgentFileID,
 				})
-				displayString := fmt.Sprintf("module %s", search.Files[0].Filename)
+				displayString := fmt.Sprintf("module %s", file.Filename)
 				response.DisplayParams = &displayString
 				return response
 			}

@@ -23,8 +23,8 @@ static char* native_call(void* handle, char* functionName, int argc, char** argv
 	dlerror();
 	void* symbol = dlsym(handle, functionName);
 	char* err = dlerror();
-	if (err != NULL) {
-		*errorOut = err;
+	if (err != NULL || symbol == NULL) {
+		*errorOut = err != NULL ? err : "symbol not found";
 		return NULL;
 	}
 	return ((native_entry_t)symbol)(argc, argv);

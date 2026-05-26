@@ -14,9 +14,9 @@ Run an exported function from a module previously loaded with `native_import`.
 
 ### Arguments
 
-#### filename
+#### file_id
 
-- Description: Name of the module previously selected with `native_import`.
+- Description: The native module previously imported with `native_import`, shown as `filename (file_id)`.
 - Required Value: True
 - Default Value: None
 
@@ -54,7 +54,7 @@ Call a function with no user arguments:
 
 ```json
 {
-  "filename": "native_ps_test-arm64.dylib",
+  "file_id": "native_ps_test-arm64.dylib (agent-file-id)",
   "function_name": "self_info",
   "args": []
 }
@@ -64,7 +64,7 @@ Call a function with string arguments:
 
 ```json
 {
-  "filename": "native_env_test-arm64.dylib",
+  "file_id": "native_env_test-arm64.dylib (agent-file-id)",
   "function_name": "get_env",
   "args": ["HOME"]
 }
@@ -74,7 +74,7 @@ List environment variables with a limit:
 
 ```json
 {
-  "filename": "native_env_test-arm64.dylib",
+  "file_id": "native_env_test-arm64.dylib (agent-file-id)",
   "function_name": "list_env",
   "args": ["PATH", "5"]
 }

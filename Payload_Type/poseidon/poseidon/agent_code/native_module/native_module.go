@@ -14,24 +14,25 @@ import (
 type nativeModule struct {
 	handle uintptr
 	path   string
+	callMu sync.Mutex
 }
 
 type importArguments struct {
-	FileID string
+	FileID string `json:"file_id"`
 }
 
 type callArguments struct {
-	FileID       string
-	FunctionName string
-	Args         []string
+	FileID       string   `json:"file_id"`
+	FunctionName string   `json:"function_name"`
+	Args         []string `json:"args"`
 }
 
 type unloadArguments struct {
-	FileID string
+	FileID string `json:"file_id"`
 }
 
 var (
-	loadedModules      = make(map[string]nativeModule)
+	loadedModules      = make(map[string]*nativeModule)
 	loadedModulesMutex sync.RWMutex
 )
 
@@ -39,55 +40,6 @@ func init() {
 	taskRegistrar.Register("native_import", RunImport)
 	taskRegistrar.Register("native_call", RunCall)
 	taskRegistrar.Register("native_unload", RunUnload)
-}
-
-func (e *importArguments) UnmarshalJSON(data []byte) error {
-	alias := map[string]interface{}{}
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	if v, ok := alias["file_id"]; ok {
-		e.FileID = v.(string)
-	}
-	return nil
-}
-
-func (e *callArguments) UnmarshalJSON(data []byte) error {
-	alias := map[string]interface{}{}
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	if v, ok := alias["file_id"]; ok {
-		e.FileID = v.(string)
-	}
-	if v, ok := alias["function_name"]; ok {
-		e.FunctionName = v.(string)
-	}
-	if v, ok := alias["args"]; ok {
-		e.Args = parseStringArray(v.([]interface{}))
-	}
-	return nil
-}
-
-func (e *unloadArguments) UnmarshalJSON(data []byte) error {
-	alias := map[string]interface{}{}
-	if err := json.Unmarshal(data, &alias); err != nil {
-		return err
-	}
-	if v, ok := alias["file_id"]; ok {
-		e.FileID = v.(string)
-	}
-	return nil
-}
-
-func parseStringArray(configArray []interface{}) []string {
-	values := make([]string, len(configArray))
-	if configArray != nil {
-		for i, value := range configArray {
-			values[i] = value.(string)
-		}
-	}
-	return values
 }
 
 func RunImport(task structs.Task) {
@@ -137,7 +89,10 @@ func RunImport(task structs.Task) {
 		task.Job.SendResponses <- msg
 		return
 	}
-	loadedModules[args.FileID] = module
+	loadedModules[args.FileID] = &nativeModule{
+		handle: module.handle,
+		path:   module.path,
+	}
 	loadedModulesMutex.Unlock()
 
 	msg.Completed = true
@@ -173,8 +128,11 @@ func RunCall(task structs.Task) {
 		task.Job.SendResponses <- msg
 		return
 	}
-	output, err := callNativeModule(module, args.FunctionName, args.Args)
+	module.callMu.Lock()
 	loadedModulesMutex.RUnlock()
+	defer module.callMu.Unlock()
+
+	output, err := callNativeModule(*module, args.FunctionName, args.Args)
 	if err != nil {
 		msg.SetError(err.Error())
 		task.Job.SendResponses <- msg
@@ -209,16 +167,19 @@ func RunUnload(task structs.Task) {
 		task.Job.SendResponses <- msg
 		return
 	}
-	if err := closeNativeModule(module); err != nil {
-		loadedModulesMutex.Unlock()
+	delete(loadedModules, args.FileID)
+	module.callMu.Lock()
+	loadedModulesMutex.Unlock()
+
+	if err := closeNativeModule(*module); err != nil {
+		module.callMu.Unlock()
 		msg.SetError(err.Error())
 		task.Job.SendResponses <- msg
 		return
 	}
-	delete(loadedModules, args.FileID)
-	loadedModulesMutex.Unlock()
+	cleanupNativeModule(*module)
+	module.callMu.Unlock()
 
-	cleanupNativeModule(module)
 	msg.Completed = true
 	msg.UserOutput = fmt.Sprintf("Unloaded native module %s", args.FileID)
 	task.Job.SendResponses <- msg
