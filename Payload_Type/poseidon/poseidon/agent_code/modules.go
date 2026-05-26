@@ -30,6 +30,7 @@ import (
 	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/ls"
 	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/mkdir"
 	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/mv"
+	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/native_module"
 	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/persist_launchd"
 	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/persist_loginitem"
 	_ "github.com/MythicAgents/poseidon/Payload_Type/poseidon/agent_code/portscan"
