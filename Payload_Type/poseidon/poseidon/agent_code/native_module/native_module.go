@@ -89,10 +89,7 @@ func RunImport(task structs.Task) {
 		task.Job.SendResponses <- msg
 		return
 	}
-	loadedModules[args.FileID] = &nativeModule{
-		handle: module.handle,
-		path:   module.path,
-	}
+	loadedModules[args.FileID] = module
 	loadedModulesMutex.Unlock()
 
 	msg.Completed = true
@@ -132,7 +129,7 @@ func RunCall(task structs.Task) {
 	loadedModulesMutex.RUnlock()
 	defer module.callMu.Unlock()
 
-	output, err := callNativeModule(*module, args.FunctionName, args.Args)
+	output, err := callNativeModule(module, args.FunctionName, args.Args)
 	if err != nil {
 		msg.SetError(err.Error())
 		task.Job.SendResponses <- msg
@@ -170,15 +167,15 @@ func RunUnload(task structs.Task) {
 	delete(loadedModules, args.FileID)
 	module.callMu.Lock()
 	loadedModulesMutex.Unlock()
+	defer module.callMu.Unlock()
 
-	if err := closeNativeModule(*module); err != nil {
-		module.callMu.Unlock()
+	if err := closeNativeModule(module); err != nil {
+		cleanupNativeModule(module)
 		msg.SetError(err.Error())
 		task.Job.SendResponses <- msg
 		return
 	}
-	cleanupNativeModule(*module)
-	module.callMu.Unlock()
+	cleanupNativeModule(module)
 
 	msg.Completed = true
 	msg.UserOutput = fmt.Sprintf("Unloaded native module %s", args.FileID)

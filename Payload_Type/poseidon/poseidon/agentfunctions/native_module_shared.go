@@ -17,9 +17,35 @@ func formatNativeModuleSelection(filename, agentFileID string) string {
 
 func parseNativeModuleFileID(selected string) string {
 	if start := strings.LastIndex(selected, " ("); start >= 0 && strings.HasSuffix(selected, ")") {
-		return selected[start+2 : len(selected)-1]
+		fileID := selected[start+2 : len(selected)-1]
+		if start > 0 && isUUIDish(fileID) {
+			return fileID
+		}
 	}
 	return selected
+}
+
+func isUUIDish(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for i, r := range value {
+		switch i {
+		case 8, 13, 18, 23:
+			if r != '-' {
+				return false
+			}
+		default:
+			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func hasNativeModuleComment(comment string) bool {
+	return strings.Contains(comment, nativeModuleComment)
 }
 
 func getNativeModuleFiles(input agentstructs.PTRPCDynamicQueryFunctionMessage) []string {
@@ -40,7 +66,7 @@ func getNativeModuleFiles(input agentstructs.PTRPCDynamicQueryFunctionMessage) [
 
 	options := make([]string, 0, len(fileResp.Files))
 	for _, file := range fileResp.Files {
-		if file.Comment != nativeModuleComment {
+		if !hasNativeModuleComment(file.Comment) {
 			continue
 		}
 		options = append(options, formatNativeModuleSelection(file.Filename, file.AgentFileID))
@@ -67,7 +93,7 @@ func resolveNativeModuleFile(selected string, callbackID int) (*mythicrpc.FileDa
 		return nil, "Failed to find specified file"
 	}
 	file := search.Files[0]
-	if file.Comment != nativeModuleComment {
+	if !hasNativeModuleComment(file.Comment) {
 		return nil, "Selected file is not a loaded native module"
 	}
 	return &file, ""

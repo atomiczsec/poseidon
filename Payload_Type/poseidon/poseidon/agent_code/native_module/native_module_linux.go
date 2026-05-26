@@ -51,54 +51,54 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func loadNativeModule(fileID string, fileBytes []byte) (nativeModule, error) {
+func loadNativeModule(fileID string, fileBytes []byte) (*nativeModule, error) {
 	if module, err := loadNativeModuleFromMemfd(fileID, fileBytes); err == nil {
 		return module, nil
 	}
 	return loadNativeModuleFromTemp(fileBytes)
 }
 
-func loadNativeModuleFromMemfd(fileID string, fileBytes []byte) (nativeModule, error) {
+func loadNativeModuleFromMemfd(fileID string, fileBytes []byte) (*nativeModule, error) {
 	fd, err := unix.MemfdCreate("poseidon-native-"+fileID, unix.MFD_CLOEXEC)
 	if err != nil {
-		return nativeModule{}, err
+		return nil, err
 	}
 	defer unix.Close(fd)
 
 	if err := writeAllFD(fd, fileBytes); err != nil {
-		return nativeModule{}, err
+		return nil, err
 	}
 
 	path := fmt.Sprintf("/proc/self/fd/%d", fd)
 	handle, err := dlopenPath(path)
 	if err != nil {
-		return nativeModule{}, err
+		return nil, err
 	}
-	return nativeModule{handle: handle}, nil
+	return &nativeModule{handle: handle}, nil
 }
 
-func loadNativeModuleFromTemp(fileBytes []byte) (nativeModule, error) {
+func loadNativeModuleFromTemp(fileBytes []byte) (*nativeModule, error) {
 	file, err := os.CreateTemp("", "poseidon-native-*.so")
 	if err != nil {
-		return nativeModule{}, err
+		return nil, err
 	}
 	path := file.Name()
 	if _, err = file.Write(fileBytes); err != nil {
 		_ = file.Close()
 		_ = os.Remove(path)
-		return nativeModule{}, err
+		return nil, err
 	}
 	if err = file.Close(); err != nil {
 		_ = os.Remove(path)
-		return nativeModule{}, err
+		return nil, err
 	}
 
 	handle, err := dlopenPath(path)
 	if err != nil {
 		_ = os.Remove(path)
-		return nativeModule{}, err
+		return nil, err
 	}
-	return nativeModule{handle: handle, path: path}, nil
+	return &nativeModule{handle: handle, path: path}, nil
 }
 
 func writeAllFD(fd int, fileBytes []byte) error {
@@ -134,7 +134,7 @@ func dlopenPath(path string) (uintptr, error) {
 	return uintptr(handle), nil
 }
 
-func callNativeModule(module nativeModule, functionName string, args []string) (string, error) {
+func callNativeModule(module *nativeModule, functionName string, args []string) (string, error) {
 	cFunctionName := C.CString(functionName)
 	defer C.free(unsafe.Pointer(cFunctionName))
 
@@ -162,7 +162,7 @@ func callNativeModule(module nativeModule, functionName string, args []string) (
 	return C.GoString(result), nil
 }
 
-func closeNativeModule(module nativeModule) error {
+func closeNativeModule(module *nativeModule) error {
 	var cErr *C.char
 	result := C.native_dlclose(unsafe.Pointer(module.handle), &cErr)
 	if result != 0 {
@@ -174,7 +174,7 @@ func closeNativeModule(module nativeModule) error {
 	return nil
 }
 
-func cleanupNativeModule(module nativeModule) {
+func cleanupNativeModule(module *nativeModule) {
 	if module.path != "" {
 		_ = os.Remove(module.path)
 	}

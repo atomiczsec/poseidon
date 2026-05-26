@@ -48,28 +48,28 @@ import (
 	"unsafe"
 )
 
-func loadNativeModule(_ string, fileBytes []byte) (nativeModule, error) {
+func loadNativeModule(_ string, fileBytes []byte) (*nativeModule, error) {
 	file, err := os.CreateTemp("", "poseidon-native-*.dylib")
 	if err != nil {
-		return nativeModule{}, err
+		return nil, err
 	}
 	path := file.Name()
 	if _, err = file.Write(fileBytes); err != nil {
 		_ = file.Close()
 		_ = os.Remove(path)
-		return nativeModule{}, err
+		return nil, err
 	}
 	if err = file.Close(); err != nil {
 		_ = os.Remove(path)
-		return nativeModule{}, err
+		return nil, err
 	}
 
 	handle, err := dlopenPath(path)
 	if err != nil {
 		_ = os.Remove(path)
-		return nativeModule{}, err
+		return nil, err
 	}
-	return nativeModule{handle: handle, path: path}, nil
+	return &nativeModule{handle: handle, path: path}, nil
 }
 
 func dlopenPath(path string) (uintptr, error) {
@@ -87,7 +87,7 @@ func dlopenPath(path string) (uintptr, error) {
 	return uintptr(handle), nil
 }
 
-func callNativeModule(module nativeModule, functionName string, args []string) (string, error) {
+func callNativeModule(module *nativeModule, functionName string, args []string) (string, error) {
 	cFunctionName := C.CString(functionName)
 	defer C.free(unsafe.Pointer(cFunctionName))
 
@@ -115,7 +115,7 @@ func callNativeModule(module nativeModule, functionName string, args []string) (
 	return C.GoString(result), nil
 }
 
-func closeNativeModule(module nativeModule) error {
+func closeNativeModule(module *nativeModule) error {
 	var cErr *C.char
 	result := C.native_dlclose(unsafe.Pointer(module.handle), &cErr)
 	if result != 0 {
@@ -127,7 +127,7 @@ func closeNativeModule(module nativeModule) error {
 	return nil
 }
 
-func cleanupNativeModule(module nativeModule) {
+func cleanupNativeModule(module *nativeModule) {
 	if module.path != "" {
 		_ = os.Remove(module.path)
 	}
