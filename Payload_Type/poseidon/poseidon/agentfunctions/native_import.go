@@ -93,7 +93,7 @@ func clearNativeImportCommentOnFailure(taskData *agentstructs.PTTaskMessageAllDa
 		Success: true,
 		TaskID:  taskData.Task.ID,
 	}
-	if !nativeImportTaskFailed(taskData.Task.Status) {
+	if !nativeImportTaskFailed(taskData.Task) {
 		return response
 	}
 
@@ -139,7 +139,17 @@ func clearNativeImportCommentOnFailure(taskData *agentstructs.PTTaskMessageAllDa
 	return response
 }
 
-func nativeImportTaskFailed(status string) bool {
-	status = strings.ToLower(strings.TrimSpace(status))
-	return status == "error" || strings.HasPrefix(status, "error:")
+// nativeImportTaskFailed reports whether native_import finished unsuccessfully.
+// Poseidon agents signal failure via SetError (status "error"), matching jsimport
+// and other commands. Mythic marks successful tasks "completed". Server-side
+// tasking failures use "Error: ..." prefixes. All other statuses are left alone.
+func nativeImportTaskFailed(task agentstructs.PTTaskMessageTaskData) bool {
+	status := strings.ToLower(strings.TrimSpace(task.Status))
+	if status == strings.ToLower(agentstructs.PT_TASK_FUNCTION_STATUS_COMPLETED) {
+		return false
+	}
+	if status == "error" {
+		return true
+	}
+	return strings.HasPrefix(status, "error:")
 }
